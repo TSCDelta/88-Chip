@@ -1,204 +1,99 @@
 # CHIP-8 Emulator
 
-A fully functional CHIP-8 emulator built with Python and Pygame. This emulator can run classic CHIP-8 games and programs with accurate timing and display rendering.
+A CHIP-8 interpreter with a Pygame frontend, split into small components on
+top of your `Chip8CPU` core. Conventions (memory layout, font placement,
+keypad mapping, timer/clock decoupling) follow Tobias V. I. Langhoff's guide:
+https://tobiasvl.github.io/blog/write-a-chip-8-emulator/
 
-## Features
+## Layout
 
-- ✅ Complete CHIP-8 instruction set implementation
-- 🎮 Full keyboard input support
-- 🖥️ Accurate 64x32 pixel display with scaling
-- 🔊 Sound support with beep functionality
-- ⚡ Configurable CPU speed/timing
-- 📁 ROM loading from file
-- 🧪 Robust CPU implementation with validation
+```
+main.py                 Entry point: parses CLI args, starts the Emulator
+chip8/
+  __init__.py            Package exports
+  cpu.py                  Chip8CPU: memory, registers, instruction execution
+  display.py              Display: owns the Pygame window, draws the framebuffer
+  keypad.py                Keypad: maps keyboard events to the 16-key hex keypad
+  audio.py                Beeper: generates and loops the sound-timer beep
+  emulator.py              Emulator: run loop wiring CPU + Display + Keypad + Beeper
+requirements.txt
+```
 
-## Requirements
+Each component only knows about its own job:
+
+- **`cpu.py`** has no idea Pygame exists. It's pure emulation logic (your
+  original file, with the font table extended from just `0`/`1` to the full
+  `0`-`F` hex digit set, plus a `load_rom()` helper). The original test suite
+  still passes unchanged against it.
+- **`display.py`** takes a framebuffer (the CPU's `display` grid) and draws it
+  — it doesn't know about instructions or timers.
+- **`keypad.py`** turns Pygame key events into a 16-element key-state list —
+  it doesn't know about the CPU's opcodes.
+- **`audio.py`** just knows how to loop/stop a beep — it doesn't know *why*
+  it's beeping (that's the sound timer's job to decide).
+- **`emulator.py`** is the only piece that wires them all together: it steps
+  the CPU, decides when to beep, tells the display to redraw, and reads input.
+
+This means you can, e.g., swap `display.py` for an SDL2 or a headless/test
+renderer without touching `cpu.py`, or reuse `cpu.py` in a totally different
+frontend (web, terminal, etc.).
+
+## Setup
 
 ```bash
-pip install pygame
+pip install -r requirements.txt
 ```
 
-## Quick Start
+## Usage
 
-1. **Run the emulator:**
-   ```bash
-   python main.py [rom_file.ch8]
-   ```
-
-2. **Without a ROM file:**
-   ```bash
-   python main.py
-   ```
-   The emulator will start with a blank screen. Use the file menu or drag-and-drop to load a ROM.
-
-## Controls
-
-The CHIP-8 uses a 16-key hexadecimal keypad (0-F). The keyboard mapping is:
-
-```
-CHIP-8 Keypad    Keyboard
-1 2 3 C          1 2 3 4
-4 5 6 D    =>    Q W E R
-7 8 9 E          A S D F
-A 0 B F          Z X C V
-```
-
-### Additional Controls
-- `ESC` - Exit emulator
-- `R` - Reset/Restart current ROM
-- `P` - Pause/Resume
-- `+/-` - Increase/Decrease CPU speed
-- `F11` - Toggle fullscreen
-
-## File Structure
-
-```
-chip8-emulator/
-├── main.py              # Main emulator application
-├── chip8_cpu.py         # CHIP-8 CPU implementation
-├── cpu.py               # Standalone CPU with tests
-├── roms/                # Directory for ROM files
-├── fonts/               # CHIP-8 font data
-└── README.md            # This file
-```
-
-## Usage Examples
-
-### Basic Usage
 ```bash
-# Run Pong
-python main.py roms/pong.ch8
-
-# Run Tetris
-python main.py roms/tetris.ch8
-
-# Run Space Invaders
-python main.py roms/invaders.ch8
+python main.py path/to/rom.ch8
 ```
 
-### Advanced Options
+Optional flags:
+
 ```bash
-# Run with custom CPU speed (default: 700 Hz)
-python main.py --speed 500 roms/game.ch8
-
-# Run with different window scale (default: 10x)
-python main.py --scale 15 roms/game.ch8
-
-# Enable debug mode
-python main.py --debug roms/game.ch8
+python main.py rom.ch8 --cycles 11 --scale 12
 ```
 
-## Configuration
+- `--cycles`: CPU instructions executed per 60 Hz frame (default `11`, ≈660 Hz,
+  a common speed for CHIP-8 games). Bump this up for games that feel sluggish,
+  lower it for games that run too fast.
+- `--scale`: pixel size multiplier for the 64x32 display (default `12`, giving
+  a 768x384 window).
 
-You can modify the following settings in `main.py`:
+Press `Esc` or close the window to quit.
 
-- `WINDOW_SCALE`: Display scaling factor (default: 10)
-- `CPU_SPEED`: Instructions per second (default: 700)
-- `TIMER_SPEED`: Timer frequency in Hz (default: 60)
-- `BACKGROUND_COLOR`: Background color (default: black)
-- `FOREGROUND_COLOR`: Pixel color (default: white)
+## Keypad
 
-## ROMs
+CHIP-8 used a 16-key hex keypad. It's mapped onto the left side of a QWERTY
+keyboard:
 
-CHIP-8 ROMs typically have `.ch8` or `.c8` extensions. You can find public domain ROMs at:
-- [Zophar's Domain](https://www.zophar.net/pdroms/chip8.html)
-- [CHIP-8 Archive](http://www.chip8.com/)
-- [Revival Studios](https://www.revival-studios.com/other.php)
-
-Popular games include:
-- Pong
-- Tetris
-- Space Invaders
-- Pac-Man
-- Breakout
-- Missile Command
-
-## Development
-
-### CPU Implementation
-The CHIP-8 CPU (`chip8_cpu.py`) implements:
-- 35 instructions covering the complete CHIP-8 instruction set
-- 4KB memory (0x000-0xFFF)
-- 16 8-bit registers (V0-VF)
-- 16-bit index register (I)
-- Program counter and stack pointer
-- Two timers (delay and sound)
-- 64x32 monochrome display
-- 16-key hexadecimal keypad
-
-### Adding New Features
-1. **Custom Instructions**: Add to the `execute()` method in `chip8_cpu.py`
-2. **Enhanced Graphics**: Modify the display rendering in `main.py`
-3. **Audio Effects**: Extend the sound system with different beep types
-4. **Save States**: Implement CPU state serialization
-
-## Troubleshooting
-
-### Common Issues
-
-**ROM won't load:**
-- Ensure the ROM file exists and is readable
-- Check that the file is a valid CHIP-8 ROM (usually 4KB or less)
-- Try a different ROM to verify the emulator works
-
-**Game runs too fast/slow:**
-- Adjust CPU speed with `+/-` keys
-- Some games are designed for specific speeds
-- Try speeds between 200-1000 Hz
-
-**No sound:**
-- Check your system audio settings
-- Ensure pygame audio is properly initialized
-- Try running with `--debug` to see audio status
-
-**Controls don't work:**
-- Verify you're using the correct key mapping
-- Make sure the emulator window has focus
-- Some games use different keys - check the game's documentation
-
-### Debug Mode
-Run with `--debug` to see:
-- CPU state information
-- Instruction execution trace
-- Memory dumps
-- Timer values
-- Input status
-
-## Technical Details
-
-### CHIP-8 Specifications
-- **CPU**: Custom 8-bit processor
-- **Memory**: 4KB RAM (0x000-0xFFF)
-- **Display**: 64x32 pixels, monochrome
-- **Timers**: 60Hz delay and sound timers
-- **Input**: 16-key hexadecimal keypad
-- **Fonts**: Built-in 4x5 pixel font set (0-F)
-
-### Memory Map
 ```
-0x000-0x1FF: Reserved (interpreter)
-0x050-0x0A0: Font set storage
-0x200-0xFFF: Program ROM and work RAM
+CHIP-8 keypad      Your keyboard
+1 2 3 C             1 2 3 4
+4 5 6 D             Q W E R
+7 8 9 E             A S D F
+A 0 B F             Z X C V
 ```
 
-## Contributing
+## Implementation notes
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
-
-## License
-
-This project is open source and available under the MIT License.
-
-## Acknowledgments
-
-- Joseph Weisbecker - Creator of the CHIP-8 system
-- The CHIP-8 community for preserving games and documentation
-- Pygame developers for the excellent graphics library
-
----
-
-*Happy emulating! 🎮*
+- **Timers vs. clock speed**: `cpu.cycle()` (in `cpu.py`) ties one timer tick to
+  one instruction, which is only correct at exactly 60 Hz. Since real CHIP-8
+  games run several hundred instructions per second, `Emulator` doesn't use
+  `cycle()` directly — it fetches/executes instructions itself
+  (`Emulator.step_cpu`) and decrements the delay/sound timers once per 60 Hz
+  frame instead (`Emulator.update_timers`), so timing stays correct regardless
+  of `--cycles`.
+- **Sound**: `Beeper` generates a square-wave tone with numpy and loops it via
+  `pygame.mixer` for as long as `Emulator.update_timers` reports the sound
+  timer is nonzero.
+- **Input**: `FX0A` (wait for key) relies on `cpu.keypad` being up to date
+  *before* that instruction executes. `Emulator` shares the same list object
+  between `Keypad.state` and `cpu.keypad`, and polls input once per frame
+  before stepping the CPU, so this holds.
+- Quirks like `SHR`/`SHL` using `VY` (original COSMAC VIP behavior) vs. `VX`
+  only (CHIP-48/SUPER-CHIP behavior) aren't configurable — the CPU uses the
+  `VX`-only behavior as written in `cpu.py`. Most ROMs targeting modern
+  interpreters expect this.
